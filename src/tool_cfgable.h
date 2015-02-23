@@ -206,6 +206,13 @@ struct OperationConfig {
   bool nonpn;                     /* enable/disable TLS NPN extension */
   bool noalpn;                    /* enable/disable TLS ALPN extension */
   char *unix_socket_path;         /* path to Unix domain socket */
+#ifdef HAVE_GNUTLS_OPENPGP
+  bool openpgp;                   /* enable/disable TLS OpenPGP cert_type extension */
+  char *openpgp_keyring;          /* OpenPGP keyring file name */
+  char *openpgp_cert;             /* OpenPGP certificate file name */
+  char *openpgp_key;              /* OpenPGP key file name */
+  char *openpgp_cert_type;        /* OpenPGP cert format */
+#endif
 
   struct GlobalConfig *global;
   struct OperationConfig *prev;

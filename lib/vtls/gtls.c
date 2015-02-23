@@ -35,6 +35,9 @@
 #include <gnutls/abstract.h>
 #include <gnutls/gnutls.h>
 #include <gnutls/x509.h>
+#ifdef HAVE_GNUTLS_OPENPGP
+#include <gnutls/openpgp.h>
+#endif
 
 #ifdef USE_GNUTLS_NETTLE
 #include <gnutls/crypto.h>
@@ -350,7 +353,7 @@ static CURLcode handshake(struct connectdata *conn,
   }
 }
 
-static gnutls_x509_crt_fmt_t do_file_type(const char *type)
+static gnutls_x509_crt_fmt_t do_x509_file_type(const char *type)
 {
   if(!type || !type[0])
     return GNUTLS_X509_FMT_PEM;
@@ -360,6 +363,18 @@ static gnutls_x509_crt_fmt_t do_file_type(const char *type)
     return GNUTLS_X509_FMT_DER;
   return -1;
 }
+#ifdef HAVE_GNUTLS_OPENPGP
+static gnutls_openpgp_crt_fmt_t do_openpgp_file_type(const char *type)
+{
+  if(!type || !type[0])
+    return GNUTLS_OPENPGP_FMT_BASE64;
+  if(Curl_raw_equal(type, "BASE64"))
+    return GNUTLS_OPENPGP_FMT_BASE64;
+  if(Curl_raw_equal(type, "RAW"))
+    return GNUTLS_OPENPGP_FMT_RAW;
+  return -1;
+}
+#endif
 
 static CURLcode
 gtls_connect_step1(struct connectdata *conn,
@@ -390,9 +405,15 @@ gtls_connect_step1(struct connectdata *conn,
     GNUTLS_CIPHER_3DES_CBC,
   };
   static const int cert_type_priority[] = { GNUTLS_CRT_X509, 0 };
+#ifdef HAVE_GNUTLS_OPENPGP
+  static const int openpgp_cert_type_priority[] = { GNUTLS_CRT_OPENPGP, GNUTLS_CRT_X509, 0 };
+#endif
   static int protocol_priority[] = { 0, 0, 0, 0 };
 #else
 #define GNUTLS_CIPHERS "NORMAL:-ARCFOUR-128:-CTYPE-ALL:+CTYPE-X509"
+#ifdef HAVE_GNUTLS_OPENPGP
+#define GNUTLS_OPENPGP_CIPHERS "NORMAL:-ARCFOUR-128:-CTYPE-ALL:+CTYPE-OPENPGP:+CTYPE-X509"
+#endif
 /* If GnuTLS was compiled without support for SRP it will error out if SRP is
    requested in the priority string, so treat it specially
  */
@@ -471,6 +492,23 @@ gtls_connect_step1(struct connectdata *conn,
             rc, data->set.ssl.CAfile);
   }
 
+#ifdef HAVE_GNUTLS_OPENPGP
+  if(data->set.ssl_openpgp && data->set.str[STRING_OPENPGP_KEYRING]) {
+    rc = gnutls_certificate_set_openpgp_keyring_file(conn->ssl[sockindex].cred,
+                                                     data->set.str[STRING_OPENPGP_KEYRING],
+                                                     GNUTLS_OPENPGP_FMT_RAW);
+    if(rc < 0) {
+      infof(data, "error reading gpg keyring file %s (%s)\n",
+            data->set.str[STRING_OPENPGP_KEYRING], gnutls_strerror(rc));
+      if(data->set.ssl.verifypeer)
+        return CURLE_SSL_CACERT_BADFILE;
+    }
+    else 
+        infof(data, "successfully read gpg keyring file %s\n",
+              data->set.str[STRING_OPENPGP_KEYRING]);
+  }
+#endif
+
   if(data->set.ssl.CRLfile) {
     /* set the CRL list file */
     rc = gnutls_certificate_set_x509_crl_file(conn->ssl[sockindex].cred,
@@ -519,6 +557,11 @@ gtls_connect_step1(struct connectdata *conn,
   /* Sets the priority on the certificate types supported by gnutls. Priority
    is higher for types specified before others. After specifying the types
    you want, you must append a 0. */
+#ifdef HAVE_GNUTLS_OPENPGP
+  if(data->set.ssl_openpgp)
+    rc = gnutls_certificate_type_set_priority(session, openpgp_cert_type_priority);
+  else
+#endif
   rc = gnutls_certificate_type_set_priority(session, cert_type_priority);
   if(rc != GNUTLS_E_SUCCESS)
     return CURLE_SSL_CONNECT_ERROR;
@@ -561,6 +604,37 @@ gtls_connect_step1(struct connectdata *conn,
   }
 
 #else
+#ifdef HAVE_GNUTLS_OPENPGP
+  if(data->set.ssl_openpgp) 
+    switch (data->set.ssl.version) {
+      case CURL_SSLVERSION_SSLv3:
+        prioritylist = GNUTLS_OPENPGP_CIPHERS ":-VERS-TLS-ALL:+VERS-SSL3.0";
+        sni = false;
+        break;
+      case CURL_SSLVERSION_DEFAULT:
+      case CURL_SSLVERSION_TLSv1:
+        prioritylist = GNUTLS_OPENPGP_CIPHERS ":-VERS-SSL3.0";
+        break;
+      case CURL_SSLVERSION_TLSv1_0:
+        prioritylist = GNUTLS_OPENPGP_CIPHERS ":-VERS-SSL3.0:-VERS-TLS-ALL:"
+          "+VERS-TLS1.0";
+        break;
+      case CURL_SSLVERSION_TLSv1_1:
+        prioritylist = GNUTLS_OPENPGP_CIPHERS ":-VERS-SSL3.0:-VERS-TLS-ALL:"
+          "+VERS-TLS1.1";
+        break;
+      case CURL_SSLVERSION_TLSv1_2:
+        prioritylist = GNUTLS_OPENPGP_CIPHERS ":-VERS-SSL3.0:-VERS-TLS-ALL:"
+          "+VERS-TLS1.2";
+        break;
+      case CURL_SSLVERSION_SSLv2:
+      default:
+        failf(data, "GnuTLS does not support SSLv2");
+        return CURLE_SSL_CONNECT_ERROR;
+        break;
+    }
+  else
+#endif
   /* Ensure +SRP comes at the *end* of all relevant strings so that it can be
    * removed if a run-time error indicates that SRP is not supported by this
    * GnuTLS version */
@@ -640,12 +714,29 @@ gtls_connect_step1(struct connectdata *conn,
          data->set.str[STRING_CERT],
          data->set.str[STRING_KEY] ?
          data->set.str[STRING_KEY] : data->set.str[STRING_CERT],
-         do_file_type(data->set.str[STRING_CERT_TYPE]) ) !=
+         do_x509_file_type(data->set.str[STRING_CERT_TYPE]) ) !=
        GNUTLS_E_SUCCESS) {
       failf(data, "error reading X.509 key or certificate file");
       return CURLE_SSL_CONNECT_ERROR;
     }
   }
+
+#ifdef HAVE_GNUTLS_OPENPGP
+  if(data->set.ssl_openpgp 
+      && data->set.str[STRING_OPENPGP_CERT]
+      && data->set.str[STRING_OPENPGP_KEY]) {
+    /* try both base64 and raw */
+    if(gnutls_certificate_set_openpgp_key_file(
+        conn->ssl[sockindex].cred,
+        data->set.str[STRING_OPENPGP_CERT],
+        data->set.str[STRING_OPENPGP_KEY],
+        do_openpgp_file_type(data->set.str[STRING_OPENPGP_CERTTYPE]) ) != 
+       GNUTLS_E_SUCCESS) {
+      failf(data, "error reading OpenPGP key or certificate file");
+      return CURLE_SSL_CONNECT_ERROR;
+    }
+  }
+#endif
 
 #ifdef USE_TLS_SRP
   /* put the credentials to the current session */
@@ -755,7 +846,7 @@ static Curl_recv gtls_recv;
 static Curl_send gtls_send;
 
 static CURLcode
-gtls_connect_step3(struct connectdata *conn,
+gtls_x509_connect_step3(struct connectdata *conn,
                    int sockindex)
 {
   unsigned int cert_list_size;
@@ -1130,6 +1221,243 @@ gtls_connect_step3(struct connectdata *conn,
   return result;
 }
 
+#ifdef HAVE_GNUTLS_OPENPGP
+static CURLcode
+gtls_openpgp_connect_step3(struct connectdata *conn,
+                           int sockindex)
+{
+  unsigned int cert_list_size;
+  const gnutls_datum *chainp;
+  unsigned int verify_status;
+  gnutls_openpgp_crt_t openpgp_cert;
+  char certbuf[256]; /* big enough? */
+  size_t size;
+  unsigned int algo;
+  unsigned int bits;
+  time_t certclock;
+  const char *ptr;
+  struct SessionHandle *data = conn->data;
+  gnutls_session session = conn->ssl[sockindex].session;
+  int rc;
+  int incache;
+  void *ssl_sessionid;
+  CURLcode result = CURLE_OK;
+  gnutls_certificate_credentials_t cert_cred = NULL;
+
+  /* This function will return the peer's raw certificate (chain) as sent by
+     the peer. These certificates are in raw format (DER encoded for
+     X.509). In case of a X.509 then a certificate list may be present. The
+     first certificate in the list is the peer's certificate, following the
+     issuer's certificate, then the issuer's issuer etc. */
+
+  chainp = gnutls_certificate_get_peers(session, &cert_list_size);
+  if(!chainp) {
+    if(data->set.ssl.verifypeer ||
+       data->set.ssl.verifyhost ||
+       data->set.ssl.issuercert) {
+#ifdef USE_TLS_SRP
+      if(data->set.ssl.authtype == CURL_TLSAUTH_SRP
+         && data->set.ssl.username != NULL
+         && !data->set.ssl.verifypeer
+         && gnutls_cipher_get(session)) {
+        /* no peer cert, but auth is ok if we have SRP user and cipher and no
+           peer verify */
+      }
+      else {
+#endif
+        failf(data, "failed to get server cert");
+        return CURLE_PEER_FAILED_VERIFICATION;
+#ifdef USE_TLS_SRP
+      }
+#endif
+    }
+    infof(data, "\t common name: WARNING couldn't obtain\n");
+  }
+
+  if(data->set.ssl.verifypeer) {
+    /* This function will try to verify the peer's certificate and return its
+       status (trusted, invalid etc.). The value of status should be one or
+       more of the gnutls_certificate_status_t enumerated elements bitwise
+       or'd. To avoid denial of service attacks some default upper limits
+       regarding the certificate key size and chain size are set. To override
+       them use gnutls_certificate_set_verify_limits(). */
+
+    rc = gnutls_certificate_verify_peers2(session, &verify_status);
+    if(rc < 0) {
+      failf(data, "server cert verify failed: %d", rc);
+      return CURLE_SSL_CONNECT_ERROR;
+    }
+
+    /* verify_status is a bitmask of gnutls_certificate_status bits */
+    if((verify_status & GNUTLS_CERT_INVALID) || (verify_status & GNUTLS_CERT_SIGNER_NOT_FOUND)) {
+      if(data->set.ssl.verifypeer) {
+        failf(data, "server certificate verification failed. CAfile: %s "
+              "CRLfile: %s", data->set.ssl.CAfile?data->set.ssl.CAfile:"none",
+              data->set.ssl.CRLfile?data->set.ssl.CRLfile:"none");
+        return CURLE_SSL_CACERT;
+      }
+      else
+        infof(data, "\t server certificate verification FAILED\n");
+    }
+    else
+      infof(data, "\t server certificate verification OK\n");
+  }
+  else
+    infof(data, "\t server certificate verification SKIPPED\n");
+
+  /* initialize an OpenPGP certificate structure. */
+  gnutls_openpgp_crt_init(&openpgp_cert);
+
+  /* convert the given RAW Certificate to the native
+     gnutls_openpgp_crt_t format */
+  gnutls_openpgp_crt_import(openpgp_cert, chainp, GNUTLS_OPENPGP_FMT_RAW);
+
+  size=sizeof(certbuf);
+  rc = gnutls_openpgp_crt_get_name(openpgp_cert, 0, certbuf, &size);
+  if(rc) {
+    infof(data, "error fetching name from cert:%s\n",
+          gnutls_strerror(rc));
+  }
+
+  /* This function will check if the given certificate's subject matches the
+     given hostname. This is a basic implementation of the matching described
+     in RFC2818 (HTTPS), which takes into account wildcards, and the subject
+     alternative name PKIX extension. Returns non zero on success, and zero on
+     failure. */
+  rc = gnutls_openpgp_crt_check_hostname(openpgp_cert, conn->host.name);
+
+  if(!rc) {
+    if(data->set.ssl.verifyhost) {
+      failf(data, "SSL: certificate subject name (%s) does not match "
+            "target host name '%s'", certbuf, conn->host.dispname);
+      gnutls_openpgp_crt_deinit(openpgp_cert);
+      return CURLE_PEER_FAILED_VERIFICATION;
+    }
+    else
+      infof(data, "\t common name: %s (does not match '%s')\n",
+            certbuf, conn->host.dispname);
+  }
+  else
+    infof(data, "\t common name: %s (matched)\n", certbuf);
+
+  /* Check for time-based validity */
+  certclock = gnutls_openpgp_crt_get_expiration_time(openpgp_cert);
+
+  if(certclock == (time_t)-1) {
+    failf(data, "server cert expiration date verify failed");
+    return CURLE_SSL_CONNECT_ERROR;
+  }
+
+  if(certclock < time(NULL)) {
+    if(data->set.ssl.verifypeer) {
+      failf(data, "server certificate expiration date has passed.");
+      return CURLE_PEER_FAILED_VERIFICATION;
+    }
+    else
+      infof(data, "\t server certificate expiration date FAILED\n");
+  }
+  else
+    infof(data, "\t server certificate expiration date OK\n");
+
+  certclock = gnutls_openpgp_crt_get_creation_time(openpgp_cert);
+
+  if(certclock == (time_t)-1) {
+    failf(data, "server cert activation date verify failed");
+    return CURLE_SSL_CONNECT_ERROR;
+  }
+
+  if(certclock > time(NULL)) {
+    if(data->set.ssl.verifypeer) {
+      failf(data, "server certificate creation time is in future. %llu %llu", certclock, time(NULL));
+      return CURLE_PEER_FAILED_VERIFICATION;
+    }
+    else
+      infof(data, "\t server certificate activation date FAILED\n");
+  }
+  else
+    infof(data, "\t server certificate activation date OK\n");
+  /* Show:
+
+  - ciphers used
+  - subject
+  - start date
+  - expire date
+
+  */
+
+  /* public key algorithm's parameters */
+  algo = gnutls_openpgp_crt_get_pk_algorithm(openpgp_cert, &bits);
+  infof(data, "\t certificate public key: %s\n",
+        gnutls_pk_algorithm_get_name(algo));
+
+  /* version of the X.509 certificate. */
+  infof(data, "\t certificate version: #%d\n",
+        gnutls_openpgp_crt_get_version(openpgp_cert));
+
+
+  size = sizeof(certbuf);
+
+  certclock = gnutls_openpgp_crt_get_expiration_time(openpgp_cert);
+  showtime(data, "expire date", certclock);
+
+  size = sizeof(certbuf);
+
+  gnutls_openpgp_crt_deinit(openpgp_cert);
+
+  /* compression algorithm (if any) */
+  ptr = gnutls_compression_get_name(gnutls_compression_get(session));
+  /* the *_get_name() says "NULL" if GNUTLS_COMP_NULL is returned */
+  infof(data, "\t compression: %s\n", ptr);
+
+  /* the name of the cipher used. ie 3DES. */
+  ptr = gnutls_cipher_get_name(gnutls_cipher_get(session));
+  infof(data, "\t cipher: %s\n", ptr);
+
+  /* the MAC algorithms name. ie SHA1 */
+  ptr = gnutls_mac_get_name(gnutls_mac_get(session));
+  infof(data, "\t MAC: %s\n", ptr);
+
+  conn->ssl[sockindex].state = ssl_connection_complete;
+  conn->recv[sockindex] = gtls_recv;
+  conn->send[sockindex] = gtls_send;
+
+  {
+    /* we always unconditionally get the session id here, as even if we
+       already got it from the cache and asked to use it in the connection, it
+       might've been rejected and then a new one is in use now and we need to
+       detect that. */
+    void *connect_sessionid;
+    size_t connect_idsize;
+
+    /* get the session ID data size */
+    gnutls_session_get_data(session, NULL, &connect_idsize);
+    connect_sessionid = malloc(connect_idsize); /* get a buffer for it */
+
+    if(connect_sessionid) {
+      /* extract session ID to the allocated buffer */
+      gnutls_session_get_data(session, connect_sessionid, &connect_idsize);
+
+      incache = !(Curl_ssl_getsessionid(conn, &ssl_sessionid, NULL));
+      if(incache) {
+        /* there was one before in the cache, so instead of risking that the
+           previous one was rejected, we just kill that and store the new */
+        Curl_ssl_delsessionid(conn, ssl_sessionid);
+      }
+
+      /* store this session id */
+      result = Curl_ssl_addsessionid(conn, connect_sessionid, connect_idsize);
+      if(result) {
+        free(connect_sessionid);
+        result = CURLE_OUT_OF_MEMORY;
+      }
+    }
+    else
+      result = CURLE_OUT_OF_MEMORY;
+  }
+
+  return result;
+}
+#endif
 
 /*
  * This function is called after the TCP connect has completed. Setup the TLS
@@ -1163,7 +1491,12 @@ gtls_connect_common(struct connectdata *conn,
 
   /* Finish connecting once the handshake is done */
   if(ssl_connect_1==connssl->connecting_state) {
-    rc = gtls_connect_step3(conn, sockindex);
+    if (gnutls_certificate_type_get(conn->ssl[sockindex].session) == GNUTLS_CRT_X509)
+      rc = gtls_x509_connect_step3(conn, sockindex);
+#ifdef HAVE_GNUTLS_OPENPGP
+    else
+      rc = gtls_openpgp_connect_step3(conn, sockindex);
+#endif
     if(rc)
       return rc;
   }

@@ -270,6 +270,11 @@ _CURL_WARNING(_curl_easy_getinfo_err_curl_slist,
    (option) == CURLOPT_DNS_LOCAL_IP4 ||                                       \
    (option) == CURLOPT_DNS_LOCAL_IP6 ||                                       \
    (option) == CURLOPT_LOGIN_OPTIONS ||                                       \
+   (option) == CURLOPT_SSL_ENABLE_OPENPGP ||                                  \
+   (option) == CURLOPT_OPENPGP_KEYRING ||                                     \
+   (option) == CURLOPT_OPENPGP_CERT ||                                        \
+   (option) == CURLOPT_OPENPGP_KEY ||                                         \
+   (option) == CURLOPT_OPENPGP_CERTTYPE ||                                    \
    0)
 
 /* evaluates to true if option takes a curl_write_callback argument */

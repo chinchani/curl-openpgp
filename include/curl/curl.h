@@ -1626,6 +1626,21 @@ typedef enum {
   /* Set if we should verify the certificate status. */
   CINIT(SSL_VERIFYSTATUS, LONG, 232),
 
+  /* OpenPGP support during TLS handshake according to RFC 6091 */
+  CINIT(SSL_ENABLE_OPENPGP, OBJECTPOINT, 233),
+
+  /* name of the OpenPGP keyring file */
+  CINIT(OPENPGP_KEYRING, OBJECTPOINT, 234),
+
+  /* name of the OpenPGP certficate file */
+  CINIT(OPENPGP_CERT, OBJECTPOINT, 235),
+
+  /* name of the OpenPGP private key file */
+  CINIT(OPENPGP_KEY, OBJECTPOINT, 236),
+
+  /* name of the OpenPGP cert format */
+  CINIT(OPENPGP_CERTTYPE, OBJECTPOINT, 237),
+
   CURLOPT_LASTENTRY /* the last unused */
 } CURLoption;
 

@@ -562,6 +562,22 @@ or no response at all is received, the verification fails.
 
 This is currently only implemented in the OpenSSL, GnuTLS and NSS backends.
 (Added in 7.41.0)
+.IP "--openpgp"
+(SSL) Tells curl to enable OpenPGP certificate support during 
+TLS handshake according to RFC 6091.
+.IP "--openpgp-keyring <file>"
+(SSL) Tells curl to use the specified OpenPGP keyring file to verify
+for peer when using OpenPGP certificates (\fI--openpgp\fP).
+.IP "--openpgp-cert <file>"
+(SSL) Tells curl to use the specified OpenPGP certificate when client certificate
+is request by the server during a OpenPGP based HTTPS session (\fI--openpgp\fP). 
+.IP "--openpgp-key <file>"
+(SSL) Tells curl to use the specified OpenPGP private key when client certificate
+is request by the server during a OpenPGP based HTTPS session (\fI--openpgp\fP). 
+.IP "--openpgp-cert-type <type>"
+(SSL) Tells curl what certificate type the provided OpenPGP certificate is in. 
+BASE64 and RAW are recognized types.If not specified, BASE64 is assumed.
+If this option is used several times, the last one will be used.
 .IP "-f, --fail"
 (HTTP) Fail silently (no output at all) on server errors. This is mostly done
 to better enable scripts etc to better deal with failed attempts. In normal

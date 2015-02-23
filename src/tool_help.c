@@ -151,6 +151,13 @@ static const char *const helptext[] = {
   "     --noproxy       List of hosts which do not use proxy",
   "     --ntlm          Use HTTP NTLM authentication (H)",
   "     --oauth2-bearer TOKEN  OAuth 2 Bearer Token (IMAP, POP3, SMTP)",
+#ifdef HAVE_GNUTLS_OPENPGP
+  "     --openpgp       Enable OpenPGP certificate support (SSL)",
+  "     --openpgp-keyring FILE OpenPGP keyring file name (SSL)",
+  "     --openpgp-cert FILE OpenPGP certificate file name (SSL)",
+  "     --openpgp-key FILE OpenPGP private key file name (SSL)",
+  "     --openpgp-cert-type FILE OpenPGP certificate format (BASE64/RAW) (SSL)",
+#endif
   " -o, --output FILE   Write to FILE instead of stdout",
   "     --pass PASS     Pass phrase for the private key (SSL/SSH)",
   "     --pinnedpubkey FILE  Public key (PEM/DER) to verify peer against "

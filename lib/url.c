@@ -2609,6 +2609,28 @@ CURLcode Curl_setopt(struct SessionHandle *data, CURLoption option,
     break;
 #endif
 
+#ifdef HAVE_GNUTLS_OPENPGP
+  case CURLOPT_SSL_ENABLE_OPENPGP:
+    data->set.ssl_openpgp = (0 != va_arg(param, long))?TRUE:FALSE;
+    break;
+  case CURLOPT_OPENPGP_KEYRING:
+    result = setstropt(&data->set.str[STRING_OPENPGP_KEYRING],
+                       va_arg(param, char *));
+    break;
+  case CURLOPT_OPENPGP_CERT:
+    result = setstropt(&data->set.str[STRING_OPENPGP_CERT],
+                       va_arg(param, char *));
+    break;
+  case CURLOPT_OPENPGP_KEY:
+    result = setstropt(&data->set.str[STRING_OPENPGP_KEY],
+                       va_arg(param, char *));
+    break;
+  case CURLOPT_OPENPGP_CERTTYPE:
+    result = setstropt(&data->set.str[STRING_OPENPGP_CERTTYPE],
+                       va_arg(param, char *));
+    break;
+#endif
+
   default:
     /* unknown tag and its companion, just ignore: */
     result = CURLE_UNKNOWN_OPTION;

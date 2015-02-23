@@ -1434,6 +1434,12 @@ enum dupstring {
 #ifdef USE_UNIX_SOCKETS
   STRING_UNIX_SOCKET_PATH,      /* path to Unix socket, if used */
 #endif
+#ifdef HAVE_GNUTLS_OPENPGP
+  STRING_OPENPGP_KEYRING,       /* OpenPGP keyring file name */
+  STRING_OPENPGP_CERT,          /* OpenPGP certificate file name */
+  STRING_OPENPGP_KEY,           /* OpenPGP private key file name */
+  STRING_OPENPGP_CERTTYPE,      /* OpenPGP cert format (BASE64 or RAW) */
+#endif
 
   /* -- end of zero-terminated strings -- */
 
@@ -1652,6 +1658,9 @@ struct UserDefined {
   bool ssl_enable_alpn; /* TLS ALPN extension? */
 
   long expect_100_timeout; /* in milliseconds */
+#ifdef HAVE_GNUTLS_OPENPGP 
+  bool ssl_openpgp; /* enable OpenPGP cerificate support */
+#endif
 };
 
 struct Names {

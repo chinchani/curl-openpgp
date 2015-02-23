@@ -1836,6 +1836,18 @@ if test "$GNUTLS_ENABLED" = "1"; then
    ])
 fi
 
+dnl ---
+dnl Check if we can use GnuTLS OpenPGP support.
+dnl ---
+if test "$GNUTLS_ENABLED" = "1"; then
+  AC_CHECK_LIB(gnutls, gnutls_openpgp_crt_init,
+   [
+     AC_DEFINE(HAVE_GNUTLS_OPENPGP, 1, [if you have the function gnutls_openpgp_crt_init])
+     AC_SUBST(HAVE_GNUTLS_OPENPGP, [1])
+     GNUTLS_OPENPGP=1
+   ])
+fi
+
 dnl ----------------------------------------------------
 dnl check for PolarSSL
 dnl ----------------------------------------------------

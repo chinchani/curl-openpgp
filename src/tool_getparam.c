@@ -177,6 +177,13 @@ static const struct LongShort aliases[]= {
   {"$K", "sasl-ir",                  FALSE},
   {"$L", "test-event",               FALSE},
   {"$M", "unix-socket",              TRUE},
+#ifdef HAVE_GNUTLS_OPENPGP
+  {"$N", "openpgp",                  FALSE},
+  {"$O", "openpgp-keyring",          TRUE},
+  {"$P", "openpgp-cert",             TRUE},
+  {"$Q", "openpgp-key",              TRUE},
+  {"$R", "openpgp-cert-type",        TRUE},
+#endif
   {"0",   "http1.0",                 FALSE},
   {"01",  "http1.1",                 FALSE},
   {"02",  "http2",                   FALSE},
@@ -981,6 +988,23 @@ ParameterError getparameter(char *flag,    /* f or -long-flag */
       case 'M': /* --unix-socket */
         GetStr(&config->unix_socket_path, nextarg);
         break;
+#ifdef HAVE_GNUTLS_OPENPGP
+      case 'N': /* --openpgp */
+        config->openpgp = toggle;
+        break;
+      case 'O': /* --openpgp-keyring, OpenPGP keyring file name */
+        GetStr(&config->openpgp_keyring, nextarg);
+        break;
+      case 'P': /* --openpgp-cert, OpenPGP certificate file name */
+        GetStr(&config->openpgp_cert, nextarg);
+        break;
+      case 'Q': /* --openpgp-key, OpenPGP private key file name */
+        GetStr(&config->openpgp_key, nextarg);
+        break;
+      case 'R': /* --openpgp-cert-type, OpenPGP cert file type */
+        GetStr(&config->openpgp_cert_type, nextarg);
+        break;
+#endif
       }
       break;
     case '#': /* --progress-bar */

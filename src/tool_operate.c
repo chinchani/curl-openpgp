@@ -1347,6 +1347,24 @@ static CURLcode operate_do(struct GlobalConfig *global,
         retry_sleep = retry_sleep_default; /* ms */
         retrystart = tvnow();
 
+#ifdef HAVE_GNUTLS_OPENPGP
+        if(config->openpgp) {
+          my_setopt(curl, CURLOPT_SSL_ENABLE_OPENPGP, 1L);
+        }
+        if(config->openpgp_keyring) {
+          my_setopt_str(curl, CURLOPT_OPENPGP_KEYRING, config->openpgp_keyring);
+        }
+        if(config->openpgp_cert) {
+          my_setopt_str(curl, CURLOPT_OPENPGP_CERT, config->openpgp_cert);
+        }
+        if(config->openpgp_key) {
+          my_setopt_str(curl, CURLOPT_OPENPGP_KEY, config->openpgp_key);
+        }
+        if(config->openpgp_cert_type) {
+          my_setopt_str(curl, CURLOPT_OPENPGP_CERTTYPE, config->openpgp_cert_type);
+        }
+#endif
+
 #ifndef CURL_DISABLE_LIBCURL_OPTION
         result = easysrc_perform();
         if(result) {
