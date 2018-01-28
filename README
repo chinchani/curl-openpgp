@@ -14,3 +14,6 @@ Apache webserver already supports the server-side via the mod-gnutls module.
 https://mod.gnutls.org/
 
 This project is to include this support in cURL so that we now have a functional client that completes an important part of the story.
+
+Follow this thread on the submitted patch:
+https://curl.haxx.se/mail/lib-2015-02/0192.html
